@@ -1,0 +1,457 @@
+*- IDEnin hazýr Dockerfile ile Image build
+docker build -t microservice1.api .  ile image oluþurken hata verdi.
+	
+sorun1 :
+	=> ERROR [build 7/7] RUN dotnet build "MicroService1.API.csproj" -c Release -o /app/build
+	Program does not contain a static 'Main' method suitable for an entry point /src/MicroService1.API/MicroService1.API.csproj]
+
+nedeni : 
+	RUN dotnet restore "MicroService1.API/MicroService1.API.csproj"  -> Dockerfile ile ayný dizinde MicroService1.API klasörünü aradý, yok ki. *.csproj zaten Dockerfile ile ayný dizinde.
+	o nedenle
+	COPY ["MicroService1.API/MicroService1.API.csproj", "MicroService1.API/"]  deðiþtirip
+	COPY ["MicroService1.API.csproj", "MicroService1.API/"] olarak düzelttik
+
+sorun2 :
+	COPY . .
+
+nedeni : 
+	WORKDIR /src
+	.....
+	COPY ["MicroService1.API.csproj", "MicroService1.API/"]
+	....
+	COPY . . -> . o anki workdir ne ise o, ancak biz dosyalarý MicroService1.API/ içine kopyalamalýyýz.
+	o nedenle 
+	COPY . .  deðiþtirip
+	COPY . ./MicroService1.API/ olarak düzelttik
+
+olay :
+	VS IDEnin oluþturduðu Dockerfile : otomatik olarak DockerCompose amaçlý oluþur - bu Dockerfile DockerCompose içinden çaðrýlsaydý çalýþýrdýrdý,
+
+EXPOSE : 
+-------------------------
+FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS base
+WORKDIR /app
+EXPOSE 80 -> containerlar arasý baðlantý için, bu olmazsa ne biz dýþarýdan baðlanabiliriz ne de baþka herhangi bir container bu containera eriþebilir. Sadece içeriden bash ile containera eriþilrbilirdi, ki bu yetmiyor.  Bu expose containerlar arasý baðlantýyý olasý kýlýyor ama hala daha dýþarýdan baðlanamayýz, containeri kaldýrýrken -p ile port mapleme gerekli.
+Ama bu olmadan -p 5000:80 yapýp dýþ dünyaya 5000den açtýðýmda, zaten otomatik olarak 80 diðer containerlar da eriþebilir. Dýþarý açýlan port, içerdeki konteynerlara elbette ki eriþir : arkaplanda EXPOSE.
+
+-p > publish (port forward)
+
+FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS base
+WORKDIR /app
+EXPOSE 80  -> http default port
+EXPOSE 443  -> https default port
+
+örn. dýþarý açmadan içeide haberleþmeleri de istenebilir, o zaman -p yapmadan EXPOSE yapmak isteyebiliriz. Yazmak bu nedenle best practice
+her container 1 uygulama ayaa kaldýrsýn : saðlýklý olan bu. yoksa 1 container bir sürü microsdervis ayaða kaldýrabilir. ama yapmamasý best practice
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+COPY :
+-------------------------
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+WORKDIR /src
+COPY ["MicroService1.API/MicroService1.API.csproj", "MicroService1.API/"]
+RUN dotnet restore "MicroService1.API/MicroService1.API.csproj"
+COPY . .
+WORKDIR "/src/MicroService1.API"
+RUN dotnet build "MicroService1.API.csproj" -c Release -o /app/build
+
+
+WORKDIR /src : 
+	/src olduðu için, varsa onu al yoksa oluþtur
+	src olsaydý onu al demek olurdu
+COPY ["MicroService1.API/MicroService1.API.csproj", "MicroService1.API/"] : 
+	"MicroService1.API/" olduðu için src/MicroService1.API/ þeklide src nin altýnda dizin oluþturur.
+	"/MicroService1.API/" olsaydý, MicroService1.API/ ,  src ile ayný dizinde oluþurdu.
+
+
+*- Niye 2 ayrý copy var, ayýrdý? : her satýr cachelenir, deðiþmediyse de cacheten gelir : build sürecini hýzlandýrýr : 
+
+COPY ["MicroService1.API.csproj", "MicroService1.API/"]  -> bu da 1 layer yani cachelenir, *.csproj eðer bir ayar yapýlmazsa ve ya yeni bir paket yüklenmezse deðiþmez ve cache ten okunur. bu nedenle bu copy eklenip restore edilme iþlemini öyle yapmak sonra projedeki diðer doayalarý kpyalamak çok mantýklý. 
+RUN dotnet restore "MicroService1.API/MicroService1.API.csproj"  -> o zman bu da cacheten gelir ve hýz elde edilir.  obj klasörünü oluþturur
+COPY . .
+
+-->> eðer 1.COPY ayrýlmayýp da 1.COPY tek olsaydý ve dotnet restore o þekilde yapýlsaydý, ben projeye enum dahi eklesem herþeyi kopyalar ve 0dan restore çalýþtýrýrdý.
+
+
+			
+RUN dotnet restore : VSde nugetten indirince otomatik arkaplanda çalýþýr.
+-------------------------
+
+RUN dotnet restore "MicroService1.API/MicroService1.API.csproj"
+
+restore kütüphaneleri kullanýlabilir hale getiriyor. 
+*.csproj içine yazýp paket ekleseydik, o paketleri indirip kullanýlabilir hale getirirdi
+-> VSCode projesi olsaydý çok daha rahat görünürdü.
+
+*- Restore tam olaran ne yapýyor?
+
+örn normalde: 
+	terminalden : dotnet add package AutoMapper --version 12.0.1  
+	.
+	.
+	> determining projects to restore...
+	> Restored ......\*.csproj
+
+Sonuç : *.csproje eklenen satýrlar ve projem artýk bu paketi kullanabilir.
+	<ItemGroup>
+		<PackageReference Include="AutoMapper" Version="12.0.1" />
+	</ItemGroup>
+
+örn bu konuda :
+	<ItemGroup>
+		<PackageReference Include="AutoMapper" Version="12.0.1" />
+		<PackageReference Include="Autofac" Version="7.0.1" />  ------->>>> Gittim elimle yazdým.  >>>> restore etmezsem bu paketi kullanamam
+	</ItemGroup>
+
+terminalden : dotnet restore  
+	> determining projects to restore...
+	> Restored ......\*.csproj
+
+
+RUN dotnet build :
+-------------------------
+
+WORKDIR "/src/MicroService1.API"  -> bu dizin artýk app dizini demek, sonuçta üstündeki satýrlarla projem/çalýþma dizinim zaten artýk /src/MicroService1.API
+RUN dotnet build "MicroService1.API.csproj" -c Release -o /app/build -> üstteki dolayýsýyla da /src/MicroService1.API/build dizinine build alýnýyor.  
+ 
+-> burada /app/buld için app baþýnda / var, bu dotnet komutu olduðundan ancak aþaðýdaki þekilde 
+
+WORKDIR /src 
+COPY ["MicroService1.API.csproj", "MicroService1.API/"]
+	"MicroService1.API/" : workdir ne ise onun altýnda dizinde bu klasör bulur  : /src/MicroService1.API
+	"/MicroService1.API/" : workdir ne ise onunla ayný dizinde bu klasör bulur  
+
+
+
+/p:UseAppHost=false :
+-------------------------
+
+RUN dotnet publish "MicroService1.API.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+normalde VS den publish aldýðýmýz zaman, hem exe hem dll oluþtu, *.exe insanýn el ile týklayýp çalýþtýrmasý için, onun dýþýnda her taraf *.dll bilir. ( tüketecek olanlar, IIS, Docker vs.)
+UseAppHost=false flag ile *.exe oluþturmaya gerek yok diyoruz. Zaten linux image, linuxta exe ne arasýn.
+
+
+-->>>> Her zaman ConnectionString gerçek db vs gerçek bilgileri ortam deðiþkenlerinde ve ya cloud gibi güvenli sistemlerde tutmalýyýz. Yoksa docker dosya klasör yapýsýnda olan appsettings.json ele geçirilip okunabilir.
+
+
+####################################################################################################################################################################
+
+docker build -t microservice1:v1 .
+docker images -> 459...
+docker run -d -p 5050:80 --name microservice1con1 459 -> 8c3
+--> swagger çalýþmaz çnk þuan dev ise çalýþmaya ayarlý ama tarayýcý ve ya postmandan WeatherForecast istek attýk :
+		http://localhost:5050/swagger/index.html -> açýlmadý
+		http://localhost:5050/WeatherForecast ->  OK
+
+Kapatarak da 2.yi kaldýralým
+//if (app.Environment.IsDevelopment()) // docker build -t microservice1:v2 .
+docker build -t microservice1:v2 .
+docker images -> f98...
+docker run -d -p 5051:80 --name microservice1con2 f98 -> b84
+--> swagger çalýþtý, çnk swagger aktif. Tarayýcýda denedik.
+		http://localhost:5051/swagger/index.html ->  OK
+
+--->>> postman collection eklendi.
+
+-------------------------------------->>>>>> DockerCompose kullanýrken DOckerfile orjnal haline alýndý. Manual image için olan :Dockerfile_manualImageiçin
+
+Önce 2. bir ASP core web api daha ekledik, proje sað  Add Docker support ile Dockerfile ekledik.
+
+DockerCompose için :
+
+Herhangi bir proje saðtýk > Add > Container Orchestrator support
+
+>>>>>> docker-compose içine  eklenenler : 
+docker-compose.yml : base kodlamayý yapacaðýmýz yer, veriyonlamasý var içi deðiþebilir.
+ docker-compose.override.yml  : ezmek istediðimiz ve/ve ya deðiþik konfigurasyonlarla ayaða kaldýrmak istediðimiz kýsýmlar, örn farklý dbler ile farklý ortmlar için.
+ gerektikçe eklenebilir. farklý ortamlar için docker-compose.yml deðiþmez, image ve dockerfile path belirlenen base yer çnk orasý.
+
+  docker-compose.alpha.yml  - alpha db etc.
+  docker-compose.beta.yml  - beta db etc. etc.
+
+
+docker-compose : 
+---------------------------------
+version: '3.4'
+
+services:
+  microservice1.api: 
+    image: ${DOCKER_REGISTRY-}microservice1api r
+    build:
+      context: .    :
+      dockerfile: MicroService1.API/Dockerfile
+
+solution > sað týk> yeni dosya > .env . environment dosyasý. 
+docker-compose içindeki DOCKER_REGISTRY .env içinde tanýmlarýz. : DOCKER_REGISTRY="merve.ugursac" gibi.
+þimdlik tanýmlamadýk   image: ${DOCKER_REGISTRY-}microservice1api  satýrýný deðiþtirdik :   image: microservice1api  þeklinde
+docker huba gönderirken bu iþlemleri yapýcaz ve bu alana dockerhub.username imiz gelecek
+
+satýr satýr inceleme :
+
+
+services:
+  microservice1.api:  -> servis adý.  önemli: docker içinde miscoservisler birbirlerine bu servis isimleri üzerinden istek yapacaklar.yani aslýnda bunlar benim gizli domain name lerim.
+
+image: ${DOCKER_REGISTRY-}microservice1api --> ENV deðiþkeni, þuan DOCKER_REGISTRY diye biþi yok, boþ gelir
+
+ build:
+      context: .    : docker compose up ve ya docker compose build dediðimde dockerfile ýmý bulabilmeli, ona .  vermem laýzm ki ona göre arasom. docker-compose neredeyse orasý bir referns noktsýdýr, bunun sayesinde ayný dizindeki MicroService1.API klasöründeki Dockerfile 'a gidebilir. :   MicroService1.API/Dockerfile ile gider.
+	  dockerfile: MicroService1.API/Dockerfile  -> ütteki açýklama ile.
+
+
+içine 2.micro servis için de biz manuel ekledik. girintilere dikkat
+bu þekilde copy ler doðru oluþmuþ oluyor > sayfa baþýndaki IDE'nin oluþturduðu Dockerfile 'ýn docker compose için oluþturulmuþ olduðu açýklamaya istinaden
+
+docker-compose.yml base idi. container ismi de deðiþmesin onu da belirtelim içinde.  :  container_name: microservice1-container  -> image ile ayný girinti
+
+*- Nasýl istek atarlar birbirlerine containerlar ?
+
+servis adý alýnýr : domain
+http://microservice1-image/api/products/all  (localde örn  : http://localhost:37892/api/products/all )
+
+örnek : containerda servis ismi rabbitmq ve iç portu 5050 olsa
+rabbitmq:5050 þeklinde eriþilirdi.
+
+
+
+override içeriði : 
+-------------------------------------
+
+version: '3.4'
+
+services:
+  microservice1.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "80"
+
+düzenlememiz ile override içeriði :  
+-------------------------------------
+
+version: '3.4'
+
+services:
+  microservice1.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Logging:LogLevel:Default=Debug
+    ports:
+      - "5000:80"
+  microservice2.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "5010:80"
+
+
+
+--> Þuan farklý ortamlarýmýz olmadýðý için docker-compose.yml ve docker-compose.override.yml  alýp tek bir dosya þeklinde iþler. Eðer override içinde base'de olan komutlar olursa ovveride, basedekileri ezer. toplamda 5 keyword olur  ve tek dosya olurlar. env uygulamayý sunucuda restart etmeden deðiþtirebilmeyi saðlar. environment appsettingsi de ezecek. 
+
+örnek:
+ovveride içine eklenen     - Logging:LogLevel:Default=Debug satýrý appsettingte Information olan logging level deulat keyini ezer ve ayaða kalkýnca bu deðer Debug olur.
+
+
+  ports:      
+      - "5000:80"
+
+kýsmýna ileride https de ekleyeceðiz
+
+tüm container ve imagelerý sildim, mcr.microsoft.com/dotnet/aspnet dýþýnda
+
+docker-compose build kullanýcaz..
+her api projesinde de Program.cs //if (app.Environment.IsDevelopment()) kapattýk swagger görebilmek için
+çalýþtýrma kýsmýný da docker-compose da kalmadýðýndan emin olalým. herhangi bir api olabilir.
+
+docker compose build
+	microserve1-image ve microserve2-image isimli 2 image oluþtu
+
+docker compose create :  imagelarý varsa containerlarý oluþturur ama çalýþtýrmaz
+	microservicedockercompose adýnda ve altýnda isimleri microservice1-container ile microservice2-container adýnda 2 container olan containerý oluþturdu
+
+docker compose start : containerlarý ayaða kaldýrýr(çalýþtýrýr)
+	http://localhost:5000/swagger/index.html
+	http://localhost:5010/swagger/index.html   
+	2si de OK
+
+docker compose stop : çalýþan containerlarý durdurur
+
+docker compose rm : durmuþ containerlarý siler, þunlar silinecek diye sorar y ile onaylarýz ve siler
+
+docker compose up (bulid , recreate, start, attach) : ctrl+c vs içi terminalde iþe yaramadý bende ama dýþardan powershell ile up yapýp ctrl+c yapýnca detach ve container stop yaptý, default bir network de oluþturuyor. build etme kýsmý tabiki ilk defa oluþacak olan image için, bir deðiþiklik aptýysak yeni image oluþturmalýyýz elbette.
+
+docker compose up -d (bulid , recreate, start) : detached modda
+
+docker compose down (stop, remove) : up ile oluþan ne varsa siler : volume varsa, network varsa onlarý da siler.
+	burada up yapýp baþa terminalde stop yapýnca containerlarý durdurup sildi. default oluþturduðu networkü de sildi
+
+
+docker stop : docker bir ram kullanýyor ya memory serbest býrakýyor. Ayný deðerlerle çalýþmaya devam eder çalýþtýrýnca
+vs
+docker pause : docker bir ram kullanýyor ya memory serbest býrakmýyor
+
+docker unpause
+
+
+servis bazýnda çalýþtýrma :
+docker compose pause microservice1.api
+docker compose unpause microservice1.api
+docker compose stop microservice1.api
+
+
+test etmek için APÝ1 e WeatherForecastController içine counter oluþturup Post endpointi ile 1er arttýrdýk. Stop-start yapýp kaldýrýnca counter 0lanmalý, pause-unpause yapýnca memory salýnmadýðý için counter son aldýðý deðeri korumalý, öyle de oldu.
+
+
+docker compose exec : container içinde bash komut satýrýna baðlanýp komut çalýþtýrmamýzý saðlar, deðiþiklikler yapmak istersek
+docker destopta bir container seçip loglara baktýðýmýzz gibi terminaline gidebiliriz. örneðin pwd yazýp mevcut dizini görüp ls ile içindekileri alabilirz. Ýþte bunu direk yapabilmemizi saðlar arayðz yokken de. linuxta yok malum
+
+docker compose exec microservice1.api /bin/bash -> ile bashe baðlandýk microservice1.api servisinde
+pwd  --> /app
+apt-get update  -> ile güncelledik
+apt-get install nano -> ile bir editör indirdik ya yes dicez ya da  apt-get install nano -y ile indirebiliriz.
+ls -> klasör/dosya listeledi içinde appsettings.json var
+nano appsettings.json -> appsettings.json içeriðini nano editörü ile terminalde açtý Ctrl+X ile çýkýþ.
+
+ayný komutlar dockerda da var, ama orda tek containe rolduðu için servis belirtmeye gerek yok direk yapabiliriz.
+
+
+
+docker compose scale :  bir containerýn birden çok instanceýný tek seferde istediðimiz sayýda ayaða kaldýrma
+docker-compose  veya override içinde container ismi verdiysek siliyoruz, çünkü 1den çok sayýda kalkacaksa docker compose kendisi isim verecek. 
+docker-compose.yml içinde  #container_name: microservice1-container ve #container_name: microservice2-container þeklinde kapattýk
+ayný þekilde verdiðimiz portlarý da ya sileriz ya da aralýk veririz.
+docker-compose.override.yml içindeki
+ports:
+      - "5000:80" ya "80" ya da "5100-5200:80"
+
+
+docker-compose.yml  içeriði bu durmda  :
+	 
+version: '3.4'
+
+services:
+  microservice1.api:
+    image: microservice1-image
+    #container_name: microservice1-container
+    build:
+      context: .
+      dockerfile: MicroService1.API/Dockerfile
+  microservice2.api:
+    image: microservice2-image
+    #container_name: microservice2-container
+    build:
+      context: .
+      dockerfile: MicroService2.API/Dockerfile
+
+
+docker-compose.override.yml içeriði bu durmda  : 
+
+version: '3.4'
+
+services:
+  microservice1.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Logging:LogLevel:Default=Debug
+    ports:
+      - "5000-5100:80"
+  microservice2.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "5100-5200:80"
+
+
+docker compose up -d --scale microservice1.api=3 --scale microservice2.api=2  : alttaki nor sonucunda uygun aralýklarda toplamda 5 container ayaða kalktý 3tane api1den 2 tane api2den.
+
+-> aralýk verine bu durum containerlarda port çakýþmasý yaratabiliyor, oluþuyorlar ama ayaða kalkamýyorlar, desktop üzerinden start ile kaldýrýnca port alýp kalabiliyorlar, ya da docker compose start ile ayaða kaldýrabilriz.
+
+docker compose down -> hepsini kaldýrdýk. ve port kýsmýndkki aralýklarý sildik.
+
+docker-compose.override.yml içeriði bu durmda  : 
+
+version: '3.4'
+
+services:
+  microservice1.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Logging:LogLevel:Default=Debug
+    ports:
+      - "80"
+  microservice2.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "80"
+
+docker compose up -d --scale microservice1.api=3 --scale microservice2.api=2  : bu sefer direk toplamda 5 container ayaða kalktý 3tane api1den 2 tane api2den. rastgele portlarla
+
+
+
+docker compose push :  image larýmýzý image resgistry lere gönderiyoruz , ne kadar imageým varsa tek komutta yollayabilirim. hubta 2image için 2 repo açtým, microservice1.deneme ve  microservice2.deneme isimli. 
+docker push merveugursac/microservice1.deneme:tagname
+docker push merveugursac/microservice2.deneme:tagname
+
+
+merveugursac/microservice1.deneme:tagname ve merveugursac/microservice2.deneme:tagname isimleri docker-compose.yml içindeki image isimlerine veriyorm.tagname olarak da env deðiþkeni oluþturucam
+containerlarý scale için kapatmýþtým açtým ve port mapping de yaptým.
+
+
+.env içi: -> versiyonlarý ya manuel yapýcaz ya da iþte CI/CD çýktýsýnda yollanýr.  otomatize edilmiþtir. commit ile  yürür oto verisyon atar push yapar. 
+version=1.0
+
+docker-compose.yml içi:
+version: '3.4'
+
+services:
+  microservice1.api:
+    image: merveugursac/microservice1.deneme:${version} #microservice1-image
+    #container_name: microservice1-container
+    build:
+      context: .
+      dockerfile: MicroService1.API/Dockerfile
+  microservice2.api:
+    image: merveugursac/microservice2.deneme:${version} #microservice2-image
+    #container_name: microservice2-container
+    build:
+      context: .
+      dockerfile: MicroService2.API/Dockerfile
+
+
+
+docker-compose.override.yml içi:
+
+version: '3.4'
+
+services:
+  microservice1.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Logging:LogLevel:Default=Debug
+    ports:
+      - "5000:80"
+  microservice2.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "5001:80"
+
+ve son hali ile
+
+docker compose build
+    2 image oluþtu : merveugursac/microservice1.deneme:1.0 ve merveugursac/microservice2.deneme:1.0 -> repositorylerimle ayný isimde. tag da atabilirdim ayný isimde olmasalar.
+
+    --> ama ben logout login olmadým. sorun olmadý.
+docker logout
+docker login
+    username sorunca : merveugursac
+    password..
+    -->
+
+docker compose push
+
+---->>>> huba attým tüm cont ve imageleri sildim
+
+docker run -d -p 5010:80 --name microservice1con1  merveugursac/microservice1.deneme:1.0 -> localde bulamayýp hubtan çekip kaldýrcak

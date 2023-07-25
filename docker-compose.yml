@@ -1,0 +1,15 @@
+version: '3.4'
+
+services:
+  microservice1.api:
+    image: merveugursac/microservice1.deneme:${version} #microservice1-image
+    container_name: microservice1-container
+    build:
+      context: .
+      dockerfile: MicroService1.API/Dockerfile
+  microservice2.api:
+    image: merveugursac/microservice2.deneme:${version} #microservice2-image
+    container_name: microservice2-container
+    build:
+      context: .
+      dockerfile: MicroService2.API/Dockerfile

@@ -1,0 +1,45 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33815.320
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MicroService1.API", "MicroService1.API\MicroService1.API.csproj", "{BC6D4C4B-7403-4B38-A386-EB8B67F736B3}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{98F31AAE-7338-4FBF-8054-F42D3E0D0FA6}"
+	ProjectSection(SolutionItems) = preProject
+		.env = .env
+		Dockerfile_manualImageiçin = Dockerfile_manualImageiçin
+		MicroService1.DockerCompose.postman_collection.json = MicroService1.DockerCompose.postman_collection.json
+		Notes.txt = Notes.txt
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MicroService2.API", "MicroService2.API\MicroService2.API.csproj", "{6306809B-1447-420D-A038-47E8087407C4}"
+EndProject
+Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{FB7A68E1-9A17-42E2-B8F5-4CBD2CC233FC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BC6D4C4B-7403-4B38-A386-EB8B67F736B3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BC6D4C4B-7403-4B38-A386-EB8B67F736B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BC6D4C4B-7403-4B38-A386-EB8B67F736B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BC6D4C4B-7403-4B38-A386-EB8B67F736B3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6306809B-1447-420D-A038-47E8087407C4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6306809B-1447-420D-A038-47E8087407C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6306809B-1447-420D-A038-47E8087407C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6306809B-1447-420D-A038-47E8087407C4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FB7A68E1-9A17-42E2-B8F5-4CBD2CC233FC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB7A68E1-9A17-42E2-B8F5-4CBD2CC233FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB7A68E1-9A17-42E2-B8F5-4CBD2CC233FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB7A68E1-9A17-42E2-B8F5-4CBD2CC233FC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {94BA34B4-F856-4771-9D54-D2FFDAFCDD67}
+	EndGlobalSection
+EndGlobal
